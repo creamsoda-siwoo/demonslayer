@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>귀멸의 칼날: 혈투</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Noto Serif KR', serif;
+      }
+      .tanjiro-pattern {
+        background-color: #262626;
+        background-image: 
+          linear-gradient(45deg, #10b981 25%, transparent 25%, transparent 75%, #10b981 75%, #10b981),
+          linear-gradient(45deg, #10b981 25%, transparent 25%, transparent 75%, #10b981 75%, #10b981);
+        background-size: 60px 60px;
+        background-position: 0 0, 30px 30px;
+      }
+      /* Custom Scrollbar */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(31, 41, 55, 0.5);
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(75, 85, 99, 0.8);
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(107, 114, 128, 1);
+      }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.1/client",
+        "react/": "https://aistudiocdn.com/react@^19.2.1/",
+        "react": "https://aistudiocdn.com/react@^19.2.1",
+        "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0"
+      }
+    }
+    </script>
+</head>
+  <body class="bg-gray-900 text-white overflow-hidden select-none">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module" data-presets="typescript,react">
+      import React, { useState, useEffect } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { Sword, Wind, Shield, Pause, RotateCcw, Trophy, Skull, DoorOpen, Heart, Activity } from 'lucide-react';
+
+      // --- Constants & Types ---
+      const GameState = {
+        MENU: 'MENU',
+        BATTLE: 'BATTLE',
+        PAUSED: 'PAUSED',
+        VICTORY: 'VICTORY',
+        DEFEAT: 'DEFEAT'
+      };
+
+      // Interfaces are for TS only, Babel strips them.
+      interface Skill {
+        id: string;
+        name: string;
+        damage: number;
+        cost: number;
+        cooldown: number;
+        description: string;
+        icon: string;
+        animationColor: string;
+      }
+
+      interface Character {
+        id: string;
+        name: string;
+        maxHp: number;
+        maxSp: number;
+        spRecovery: number;
+        color: string;
+        accentColor: string;
+        icon: string;
+        description: string;
+        skills: Skill[];
+      }
+
+      interface Enemy {
+        id: string;
+        name: string;
+        maxHp: number;
+        color: string;
+        icon: string;
+        skills: Skill[];
+      }
+
+      const CHARACTERS: Character[] = [
+        {
+          id: 'TANJIRO',
+          name: '카마도 탄지로',
+          maxHp: 1000,
+          maxSp: 100,
+          spRecovery: 25,
+          color: 'bg-green-600',
+          accentColor: 'border-green-800',
+          icon: '🌊',
+          description: '물과 해의 호흡. 밸런스형',
+          skills: [
+            { id: 'WATER_WHEEL', name: '제2형: 물방아', damage: 150, cost: 30, cooldown: 2000, description: '공중제비 베기', icon: '💧', animationColor: 'bg-blue-500' },
+            { id: 'CONSTANT_FLUX', name: '제10형: 생생유전', damage: 250, cost: 50, cooldown: 5000, description: '회전할수록 강해지는 참격', icon: '🐉', animationColor: 'bg-cyan-500' },
+            { id: 'HINOKAMI', name: '히노카미 카구라: 원무', damage: 550, cost: 90, cooldown: 12000, description: '모두 태우는 태양의 춤', icon: '🔥', animationColor: 'bg-red-600' }
+          ]
+        },
+        {
+          id: 'ZENITSU',
+          name: '아가츠마 젠이츠',
+          maxHp: 800,
+          maxSp: 80,
+          spRecovery: 20,
+          color: 'bg-yellow-400',
+          accentColor: 'border-yellow-600',
+          icon: '⚡',
+          description: '번개의 호흡. 극강의 속도',
+          skills: [
+            { id: 'FLASH', name: '제1형: 벽력일섬', damage: 180, cost: 35, cooldown: 3000, description: '보이지 않는 신속의 발도', icon: '⚡', animationColor: 'bg-yellow-300' },
+            { id: 'SIX_FOLD', name: '벽력일섬 6연', damage: 300, cost: 60, cooldown: 6000, description: '공기를 찢는 6번의 참격', icon: '🌪️', animationColor: 'bg-yellow-200' },
+            { id: 'GOD_SPEED', name: '제7형: 화뢰신', damage: 600, cost: 100, cooldown: 15000, description: '뇌신과 같은 속도의 일격', icon: '🌩️', animationColor: 'bg-white' }
+          ]
+        },
+        {
+          id: 'INOSUKE',
+          name: '하시비라 이노스케',
+          maxHp: 1100,
+          maxSp: 90,
+          spRecovery: 30,
+          color: 'bg-blue-400',
+          accentColor: 'border-blue-700',
+          icon: '🐗',
+          description: '짐승의 호흡. 이도류 난무',
+          skills: [
+            { id: 'FANG', name: '제3형: 들이받기', damage: 160, cost: 25, cooldown: 2000, description: '저돌맹진!', icon: '⚔️', animationColor: 'bg-blue-300' },
+            { id: 'SLICE', name: '제7형: 공간식', damage: 320, cost: 65, cooldown: 7000, description: '감각으로 베어낸다', icon: '🌀', animationColor: 'bg-gray-200' },
+            { id: 'DEVOUR', name: '제3형: 뜯어먹기', damage: 450, cost: 80, cooldown: 10000, description: '거친 이도류 난무', icon: '🦷', animationColor: 'bg-blue-600' }
+          ]
+        },
+        {
+          id: 'KANAO',
+          name: '츠유리 카나오',
+          maxHp: 950,
+          maxSp: 100,
+          spRecovery: 30,
+          color: 'bg-pink-300',
+          accentColor: 'border-pink-500',
+          icon: '🌺',
+          description: '꽃의 호흡. 초인적인 동체시력',
+          skills: [
+            { id: 'PLUM', name: '제2형: 어영매화', damage: 160, cost: 30, cooldown: 2500, description: '방어와 공격을 동시에', icon: '🌸', animationColor: 'bg-pink-200' },
+            { id: 'CRIMSON', name: '제4형: 홍화의', damage: 330, cost: 65, cooldown: 6500, description: '곡선을 그리며 베기', icon: '👘', animationColor: 'bg-red-300' },
+            { id: 'EQUINOX', name: '종형: 피안주안', damage: 650, cost: 100, cooldown: 15000, description: '세상이 느리게 보인다', icon: '👁️', animationColor: 'bg-red-600' }
+          ]
+        },
+        {
+          id: 'GENYA',
+          name: '시나즈가와 겐야',
+          maxHp: 1300,
+          maxSp: 80,
+          spRecovery: 15,
+          color: 'bg-stone-700',
+          accentColor: 'border-stone-900',
+          icon: '🔫',
+          description: '오니를 먹는 힘. 특수 무기',
+          skills: [
+            { id: 'SHOOT', name: '남만총 사격', damage: 200, cost: 20, cooldown: 1500, description: '원거리 사격', icon: '💥', animationColor: 'bg-yellow-600' },
+            { id: 'EAT', name: '오니 뜯어먹기', damage: 300, cost: 50, cooldown: 8000, description: '체력 흡수 공격', icon: '🦷', animationColor: 'bg-purple-800' },
+            { id: 'WOOD', name: '혈귀술: 무간업수', damage: 600, cost: 80, cooldown: 14000, description: '나무룡을 소환하여 공격', icon: '🌳', animationColor: 'bg-green-900' }
+          ]
+        },
+        {
+          id: 'RENGOKU',
+          name: '렌고쿠 쿄쥬로',
+          maxHp: 1200,
+          maxSp: 120,
+          spRecovery: 20,
+          color: 'bg-red-500',
+          accentColor: 'border-red-800',
+          icon: '🔥',
+          description: '화염의 호흡. 압도적 화력',
+          skills: [
+            { id: 'SEA_OF_FIRE', name: '제1형: 부지화', damage: 180, cost: 40, cooldown: 3000, description: '돌진하며 베기', icon: '💥', animationColor: 'bg-orange-500' },
+            { id: 'RISING_SCORCHING_SUN', name: '제5형: 성염의 파도', damage: 350, cost: 70, cooldown: 7000, description: '맹렬한 불꽃의 참격', icon: '🌅', animationColor: 'bg-orange-400' },
+            { id: 'PURGATORY', name: '제9형: 연옥', damage: 700, cost: 110, cooldown: 18000, description: '지옥의 업화로 불태운다', icon: '🐲', animationColor: 'bg-red-700' }
+          ]
+        },
+        {
+          id: 'GIYU',
+          name: '토미오카 기유',
+          maxHp: 1100,
+          maxSp: 110,
+          spRecovery: 35,
+          color: 'bg-blue-700',
+          accentColor: 'border-blue-900',
+          icon: '🌊',
+          description: '물의 호흡. 철벽 방어',
+          skills: [
+            { id: 'DROP', name: '제7형: 물방울 파문 찌르기', damage: 150, cost: 25, cooldown: 2000, description: '가장 빠른 찌르기', icon: '💧', animationColor: 'bg-blue-400' },
+            { id: 'FLOWING_DANCE', name: '제3형: 유유 춤', damage: 300, cost: 60, cooldown: 6000, description: '부드럽게 흘려보내며 베기', icon: '💃', animationColor: 'bg-blue-500' },
+            { id: 'DEAD_CALM', name: '제11형: 잔잔한 물결', damage: 500, cost: 90, cooldown: 12000, description: '모든 술식을 무화시킨다', icon: '🛡️', animationColor: 'bg-cyan-300' }
+          ]
+        },
+        {
+          id: 'TENGEN',
+          name: '우즈이 텐겐',
+          maxHp: 1300,
+          maxSp: 100,
+          spRecovery: 25,
+          color: 'bg-fuchsia-700',
+          accentColor: 'border-fuchsia-900',
+          icon: '💎',
+          description: '소리의 호흡. 화려한 폭발',
+          skills: [
+            { id: 'ROAR', name: '제1형: 굉음', damage: 200, cost: 45, cooldown: 4000, description: '폭약을 이용한 강렬한 참격', icon: '💣', animationColor: 'bg-orange-400' },
+            { id: 'CONSTANT_RESOUNDING', name: '제5형: 명현주주', damage: 380, cost: 75, cooldown: 8000, description: '회전하며 폭발적인 연격', icon: '🎇', animationColor: 'bg-pink-500' },
+            { id: 'SCORE', name: '악보 완성', damage: 600, cost: 100, cooldown: 15000, description: '적의 사각을 꿰뚫는 일격', icon: '🎼', animationColor: 'bg-pink-400' }
+          ]
+        },
+        {
+          id: 'MITSURI',
+          name: '칸로지 미츠리',
+          maxHp: 1150,
+          maxSp: 90,
+          spRecovery: 25,
+          color: 'bg-pink-400',
+          accentColor: 'border-green-400',
+          icon: '🌸',
+          description: '사랑의 호흡. 유연한 채찍',
+          skills: [
+            { id: 'SHIVERS', name: '제1형: 첫사랑의 떨림', damage: 170, cost: 30, cooldown: 2500, description: '연검의 난무', icon: '💓', animationColor: 'bg-pink-300' },
+            { id: 'CAT_LOVE', name: '제3형: 사랑의 고양이 소나기', damage: 320, cost: 60, cooldown: 6000, description: '재빠른 도약 베기', icon: '🐱', animationColor: 'bg-pink-200' },
+            { id: 'LOVE_SHOWER', name: '제5형: 흔들리는 연정', damage: 550, cost: 95, cooldown: 13000, description: '피할 수 없는 광범위 난무', icon: '🎀', animationColor: 'bg-red-300' }
+          ]
+        },
+        {
+          id: 'OBANAI',
+          name: '이구로 오바나이',
+          maxHp: 950,
+          maxSp: 100,
+          spRecovery: 30,
+          color: 'bg-indigo-800',
+          accentColor: 'border-gray-900',
+          icon: '🐍',
+          description: '뱀의 호흡. 변칙적인 궤도',
+          skills: [
+            { id: 'COIL', name: '제1형: 위네리 베기', damage: 160, cost: 35, cooldown: 3000, description: '뱀처럼 휘어지는 검', icon: '〰️', animationColor: 'bg-purple-300' },
+            { id: 'COIL_CHOKE', name: '제5형: 똬리 조이기', damage: 340, cost: 70, cooldown: 7500, description: '적을 포위하는 참격', icon: '🧣', animationColor: 'bg-purple-500' },
+            { id: 'SERPENT', name: '제2형: 협두의 독아', damage: 580, cost: 95, cooldown: 14000, description: '거대한 뱀 형상의 참격', icon: '🐍', animationColor: 'bg-white' }
+          ]
+        },
+        {
+          id: 'MUICHIRO',
+          name: '토키토 무이치로',
+          maxHp: 900,
+          maxSp: 110,
+          spRecovery: 40,
+          color: 'bg-cyan-200',
+          accentColor: 'border-cyan-500',
+          icon: '☁️',
+          description: '안개의 호흡. 흐릿한 움직임',
+          skills: [
+            { id: 'MIST_SLASH', name: '제4형: 수류 물보라', damage: 150, cost: 25, cooldown: 2000, description: '부드러운 받아치기', icon: '🌫️', animationColor: 'bg-gray-100' },
+            { id: 'LAYERS_MIST', name: '제2형: 여덟 겹 안개', damage: 320, cost: 65, cooldown: 6500, description: '연속 참격', icon: '🌫️', animationColor: 'bg-gray-200' },
+            { id: 'OBSCURING', name: '제7형: 몽롱', damage: 600, cost: 100, cooldown: 14000, description: '순식간에 사라져 베어낸다', icon: '💨', animationColor: 'bg-gray-300' }
+          ]
+        },
+        {
+          id: 'SHINOBU',
+          name: '코쵸우 시노부',
+          maxHp: 750,
+          maxSp: 120,
+          spRecovery: 30,
+          color: 'bg-purple-500',
+          accentColor: 'border-purple-800',
+          icon: '🦋',
+          description: '벌레의 호흡. 치명적인 독',
+          skills: [
+            { id: 'BUTTERFLY_DANCE', name: '나비의 춤: 장난', damage: 130, cost: 20, cooldown: 1500, description: '가볍게 찌르는 독 공격', icon: '🦋', animationColor: 'bg-purple-400' },
+            { id: 'BEE_STING', name: '벌의 춤: 들이쏘기', damage: 280, cost: 50, cooldown: 5000, description: '치명적인 찌르기', icon: '🐝', animationColor: 'bg-yellow-500' },
+            { id: 'CENTIPEDE', name: '지네의 춤: 백족 주름', damage: 650, cost: 100, cooldown: 13000, description: '사방을 에워싸는 초고속 찌르기', icon: '🐛', animationColor: 'bg-purple-900' }
+          ]
+        },
+        {
+          id: 'SANEMI',
+          name: '시나즈가와 사네미',
+          maxHp: 1100,
+          maxSp: 105,
+          spRecovery: 25,
+          color: 'bg-teal-700',
+          accentColor: 'border-green-200',
+          icon: '🌪️',
+          description: '바람의 호흡. 맹렬한 폭풍',
+          skills: [
+            { id: 'DUST_WHIRLWIND', name: '제1형: 진선풍 깎기', damage: 190, cost: 40, cooldown: 3000, description: '돌진하며 베어내는 참격', icon: '🌪️', animationColor: 'bg-teal-400' },
+            { id: 'CLAWS', name: '제2형: 조조 과실바람', damage: 360, cost: 70, cooldown: 7500, description: '발톱 같은 참격', icon: '🦅', animationColor: 'bg-teal-200' },
+            { id: 'GALE', name: '제9형: 위타천 태풍', damage: 620, cost: 100, cooldown: 16000, description: '모든 것을 날려버리는 태풍', icon: '🌀', animationColor: 'bg-gray-400' }
+          ]
+        },
+        {
+          id: 'GYOMEI',
+          name: '히메지마 교메이',
+          maxHp: 1500,
+          maxSp: 80,
+          spRecovery: 20,
+          color: 'bg-stone-600',
+          accentColor: 'border-stone-800',
+          icon: '📿',
+          description: '바위의 호흡. 최강의 주',
+          skills: [
+            { id: 'SERPENTINITE', name: '제1형: 사문암 쌍극', damage: 220, cost: 45, cooldown: 4000, description: '철퇴와 도끼의 투척', icon: '⚒️', animationColor: 'bg-stone-500' },
+            { id: 'UPPER_SMASH', name: '제2형: 천면 부수기', damage: 400, cost: 75, cooldown: 9000, description: '머리 위에서 내려찍기', icon: '🔨', animationColor: 'bg-stone-400' },
+            { id: 'VOLCANIC_ROCK', name: '제5형: 와륜 형부', damage: 750, cost: 100, cooldown: 20000, description: '대지를 부수는 연속 공격', icon: '🌋', animationColor: 'bg-orange-800' }
+          ]
+        }
+      ];
+
+      const ENEMIES: Enemy[] = [
+        {
+          id: 'MUZAN',
+          name: '키부츠지 무잔',
+          maxHp: 10000,
+          color: 'bg-black border-red-600',
+          icon: '🩸',
+          skills: [
+            { id: 'M1', name: '흑혈지극', damage: 250, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-red-950' },
+            { id: 'M2', name: '충격파', damage: 500, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-red-600' }
+          ]
+        },
+        {
+          id: 'KOKUSHIBO',
+          name: '상현의 1: 코쿠시보',
+          maxHp: 4000,
+          color: 'bg-purple-900',
+          icon: '🌙',
+          skills: [
+            { id: 'E5', name: '달의 호흡', damage: 120, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-yellow-200' },
+            { id: 'E6', name: '재액의 달', damage: 300, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-purple-500' }
+          ]
+        },
+        {
+          id: 'DOUMA',
+          name: '상현의 2: 도우마',
+          maxHp: 3000,
+          color: 'bg-gray-200 text-black',
+          icon: '🪭',
+          skills: [
+            { id: 'E3', name: '한 맺힌 눈', damage: 90, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-cyan-200' },
+            { id: 'E4', name: '결정의 아이', damage: 180, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-blue-300' }
+          ]
+        },
+        {
+          id: 'AKAZA',
+          name: '상현의 3: 아카자',
+          maxHp: 2500,
+          color: 'bg-pink-700',
+          icon: '❄️',
+          skills: [
+            { id: 'E1', name: '파괴살: 나침', damage: 80, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-pink-400' },
+            { id: 'E2', name: '파괴살: 멸식', damage: 200, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-purple-600' }
+          ]
+        },
+        {
+          id: 'NAKIME',
+          name: '상현의 4: 나키메',
+          maxHp: 2000,
+          color: 'bg-neutral-800',
+          icon: '🪕',
+          skills: [
+            { id: 'N1', name: '공간 조작', damage: 100, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-neutral-600' },
+            { id: 'N2', name: '눈알 소환', damage: 200, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-red-400' }
+          ]
+        },
+        {
+          id: 'HANTENGU',
+          name: '상현의 4: 한텐구(조하쿠텐)',
+          maxHp: 2200,
+          color: 'bg-amber-800',
+          icon: '🥁',
+          skills: [
+            { id: 'E7', name: '목룡', damage: 100, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-green-800' },
+            { id: 'E8', name: '광압명파', damage: 220, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-yellow-600' }
+          ]
+        },
+        {
+          id: 'GYOKKO',
+          name: '상현의 5: 굣코',
+          maxHp: 1800,
+          color: 'bg-teal-600',
+          icon: '🏺',
+          skills: [
+            { id: 'E9', name: '문어항아리', damage: 70, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-teal-400' },
+            { id: 'E10', name: '진살어린', damage: 150, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-teal-200' }
+          ]
+        },
+        {
+          id: 'KAIGAKU',
+          name: '상현의 6: 카이가쿠',
+          maxHp: 1600,
+          color: 'bg-slate-900',
+          icon: '⚡',
+          skills: [
+            { id: 'K1', name: '검은 번개', damage: 150, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-black' },
+            { id: 'K2', name: '전광뇌굉', damage: 300, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-yellow-500' }
+          ]
+        },
+        {
+          id: 'DAKI_GYUTARO',
+          name: '상현의 6: 다키 & 규타로',
+          maxHp: 1600,
+          color: 'bg-green-900',
+          icon: '🕸️',
+          skills: [
+            { id: 'E11', name: '피의 낫', damage: 80, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-red-800' },
+            { id: 'E12', name: '오비 난무', damage: 160, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-pink-600' }
+          ]
+        },
+        {
+          id: 'ENMU',
+          name: '하현의 1: 엔무',
+          maxHp: 1200,
+          color: 'bg-purple-800',
+          icon: '💤',
+          skills: [
+            { id: 'E13', name: '강제 혼도', damage: 60, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-purple-400' },
+            { id: 'E14', name: '악몽', damage: 140, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-black' }
+          ]
+        },
+        {
+          id: 'RUI',
+          name: '하현의 5: 루이',
+          maxHp: 1000,
+          color: 'bg-gray-100 text-black border-red-500',
+          icon: '🕸️',
+          skills: [
+            { id: 'E15', name: '각사뢰', damage: 50, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-red-500' },
+            { id: 'E16', name: '살목롱', damage: 120, cost: 0, cooldown: 0, description: '', icon: '', animationColor: 'bg-white' }
+          ]
+        }
+      ];
+
+      // --- Components ---
+      
+      const StartScreen = ({ onSelect }) => {
+        return (
+          <div className="flex flex-col items-center justify-start w-full h-full z-10 relative p-4 animate-in fade-in duration-700 overflow-y-auto custom-scrollbar">
+            <div className="text-center my-8 shrink-0">
+              <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-red-800 to-red-500 mb-4 drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+                귀멸의 칼날: 혈투
+              </h1>
+              <p className="text-gray-300 text-lg">
+                호흡을 가다듬고 전집중으로 오니를 베어라.<br/>
+                상현의 오니가 무작위로 등장합니다.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-6xl pb-20 shrink-0">
+              {CHARACTERS.map((char) => (
+                <button
+                  key={char.id}
+                  onClick={() => onSelect(char)}
+                  className="group relative overflow-hidden bg-gray-900/80 border border-gray-700 hover:border-blue-400 rounded-xl p-4 transition-all duration-300 hover:scale-[1.02] active:scale-95 text-left shadow-lg backdrop-blur-sm flex items-center gap-4"
+                >
+                  <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 ${char.color}`}></div>
+                  <div className={`w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center text-4xl shadow-lg border-2 ${char.accentColor} bg-gray-800 group-hover:bg-gray-700 transition-colors`}>
+                      {char.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                      <h3 className="text-xl font-black text-white truncate">
+                          {char.name}
+                      </h3>
+                      <p className="text-xs text-gray-400 truncate">{char.description}</p>
+                      <div className="flex items-center gap-3 mt-2 text-xs font-mono text-gray-500">
+                         <span className="flex items-center gap-1"><Heart className="w-3 h-3 text-green-500"/> {char.maxHp}</span>
+                         <span className="w-px h-3 bg-gray-700"></span>
+                         <span className="flex items-center gap-1"><Wind className="w-3 h-3 text-blue-400"/> {char.maxSp}</span>
+                         <span className="w-px h-3 bg-gray-700"></span>
+                         <span className="flex items-center gap-1"><Sword className="w-3 h-3 text-red-400"/> {char.skills.length}</span>
+                      </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      };
+
+      const HUD = ({ player, enemy, playerHp, playerSp, enemyHp }) => {
+        const playerPercent = Math.max(0, (playerHp / player.maxHp) * 100);
+        const playerSpPercent = Math.max(0, (playerSp / player.maxSp) * 100);
+        const enemyPercent = Math.max(0, (enemyHp / enemy.maxHp) * 100);
+
+        return (
+          <div className="w-full max-w-5xl mx-auto px-4 pt-4 select-none pointer-events-none z-50 relative">
+            <div className="flex justify-between items-end mb-2">
+               <div className="flex items-center gap-2">
+                   <div className={`w-12 h-12 rounded-full border-2 border-white flex items-center justify-center bg-gray-800 text-2xl`}>
+                       {player.icon}
+                   </div>
+                   <div>
+                      <div className="text-xl font-black text-white leading-none shadow-black drop-shadow-md">{player.name}</div>
+                      <div className="text-xs text-blue-300 font-bold tracking-widest uppercase mt-1">Breath: {playerSp}/{player.maxSp}</div>
+                   </div>
+               </div>
+               <div className="absolute left-1/2 -translate-x-1/2 top-4 text-3xl font-black italic text-red-600 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">
+                   VS
+               </div>
+               <div className="flex items-center gap-2 flex-row-reverse text-right">
+                   <div className={`w-12 h-12 rounded-full border-2 border-red-500 flex items-center justify-center bg-gray-800 text-2xl`}>
+                       {enemy.icon}
+                   </div>
+                   <div>
+                      <div className="text-xl font-black text-red-200 leading-none shadow-black drop-shadow-md">{enemy.name}</div>
+                      <div className="text-xs text-red-400 font-bold tracking-widest uppercase mt-1">Enemy</div>
+                   </div>
+               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:gap-12 relative">
+                <div className="flex flex-col gap-1">
+                    <div className="relative h-6 bg-gray-900/80 border-2 border-gray-600 rounded skew-x-[-15deg] overflow-hidden shadow-lg">
+                         <div 
+                            className={`absolute right-0 top-0 h-full ${player.color} transition-all duration-300 ease-out flex items-center justify-end px-2`}
+                            style={{ width: `${playerPercent}%`, left: 0 }}
+                         >
+                            <span className="text-xs font-bold text-white drop-shadow-md skew-x-[15deg]">{Math.floor(playerHp)}</span>
+                         </div>
+                         {playerPercent < 30 && <div className="absolute inset-0 bg-red-500/30 animate-pulse"></div>}
+                    </div>
+                    <div className="relative h-3 bg-gray-900/80 border border-gray-600 rounded skew-x-[-15deg] overflow-hidden shadow-lg w-[90%]">
+                         <div 
+                            className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-300 ease-out"
+                            style={{ width: `${playerSpPercent}%` }}
+                         ></div>
+                    </div>
+                </div>
+                <div>
+                    <div className="relative h-6 bg-gray-900/80 border-2 border-gray-600 rounded skew-x-[15deg] overflow-hidden shadow-lg">
+                         <div 
+                            className="absolute left-0 top-0 h-full bg-pink-700 transition-all duration-300 ease-out flex items-center px-2"
+                            style={{ width: `${enemyPercent}%`, right: 0 }}
+                         >
+                             <span className="text-xs font-bold text-white drop-shadow-md skew-x-[-15deg]">{Math.floor(enemyHp)}</span>
+                         </div>
+                    </div>
+                </div>
+            </div>
+          </div>
+        );
+      };
+
+      const GameOver = ({ isVictory, onRestart }) => {
+        return (
+          <div className="flex flex-col items-center justify-center h-full w-full z-50 fixed inset-0 bg-black/90 backdrop-blur-sm p-6 animate-in fade-in duration-1000">
+            {isVictory ? (
+                <>
+                  <div className="mb-6 animate-bounce">
+                      <Trophy className="w-24 h-24 text-yellow-500" />
+                  </div>
+                  <h2 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 mb-4 drop-shadow-[0_0_25px_rgba(234,179,8,0.6)]">
+                      승리(勝利)
+                  </h2>
+                  <p className="text-2xl text-gray-300 text-center mb-10 font-bold">
+                      상현의 오니를 멸살했습니다.<br/>
+                      오늘 밤은 당신이 지켰습니다.
+                  </p>
+                </>
+            ) : (
+                <>
+                  <div className="mb-6 animate-pulse">
+                      <Skull className="w-24 h-24 text-red-700" />
+                  </div>
+                  <h2 className="text-7xl font-black text-red-700 mb-4 drop-shadow-[0_0_25px_rgba(185,28,28,0.6)] tracking-widest">
+                      패배(敗北)
+                  </h2>
+                  <p className="text-2xl text-gray-400 text-center mb-10">
+                      힘이 다했습니다...<br/>
+                      오니가 되어버릴지도 모릅니다.
+                  </p>
+                </>
+            )}
+            <button
+              onClick={onRestart}
+              className="group flex items-center gap-4 px-12 py-5 bg-transparent border-2 border-white/20 hover:border-white text-white font-bold rounded-lg transition-all hover:scale-105 active:scale-95"
+            >
+              <RotateCcw className="w-6 h-6 group-hover:-rotate-180 transition-transform duration-500" />
+              <span className="text-xl">새로운 전투 시작</span>
+            </button>
+          </div>
+        );
+      };
+
+      const GameBoard = ({ player, enemy, isPaused, onGameEnd, updateStats }) => {
+        const [playerHp, setPlayerHp] = useState(player.maxHp);
+        const [playerSp, setPlayerSp] = useState(player.maxSp);
+        const [enemyHp, setEnemyHp] = useState(enemy.maxHp);
+        const [playerAction, setPlayerAction] = useState('IDLE');
+        const [enemyAction, setEnemyAction] = useState('IDLE');
+        const [cooldowns, setCooldowns] = useState({});
+        const [isDefending, setIsDefending] = useState(false);
+        const [battleLog, setBattleLog] = useState('전투 개시!');
+        const [visualEffect, setVisualEffect] = useState(null);
+
+        useEffect(() => {
+          updateStats(playerHp, playerSp, enemyHp);
+          if (playerHp <= 0) {
+            setPlayerAction('LOSE');
+            setEnemyAction('WIN');
+            setTimeout(() => onGameEnd(false), 2000);
+          } else if (enemyHp <= 0) {
+            setPlayerAction('WIN');
+            setEnemyAction('LOSE');
+            setTimeout(() => onGameEnd(true), 2000);
+          }
+        }, [playerHp, playerSp, enemyHp]);
+
+        useEffect(() => {
+          if (isPaused || playerHp <= 0 || enemyHp <= 0) return;
+          const aiInterval = setInterval(() => {
+            const rand = Math.random();
+            if (rand < 0.35) performEnemyAttack();
+            else if (rand < 0.55) performEnemySkill();
+          }, 1600);
+          return () => clearInterval(aiInterval);
+        }, [playerHp, enemyHp, isDefending, isPaused]);
+
+        const performEnemyAttack = () => {
+          setEnemyAction('ATTACK');
+          setTimeout(() => setEnemyAction('IDLE'), 500);
+          const baseDmg = 45;
+          const damage = isDefending ? Math.floor(baseDmg * 0.2) : baseDmg;
+          setPlayerHp(prev => Math.max(0, prev - damage));
+          setPlayerAction('HURT');
+          setTimeout(() => setPlayerAction('IDLE'), 400);
+          setBattleLog(`${enemy.name}의 공격! ${damage} 피해.`);
+        };
+
+        const performEnemySkill = () => {
+          const skill = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
+          setEnemyAction('SKILL');
+          setTimeout(() => setEnemyAction('IDLE'), 800);
+          setVisualEffect(skill.animationColor);
+          setTimeout(() => setVisualEffect(null), 500);
+          const damage = isDefending ? Math.floor(skill.damage * 0.4) : skill.damage;
+          setPlayerHp(prev => Math.max(0, prev - damage));
+          setPlayerAction('HURT');
+          setTimeout(() => setPlayerAction('IDLE'), 600);
+          setBattleLog(`${enemy.name}의 ${skill.name}! ${damage} 피해!`);
+        };
+
+        const handleAttack = () => {
+          if (isPaused || (playerAction !== 'IDLE' && playerAction !== 'DEFEND')) return;
+          if (playerSp < 1) {
+              setBattleLog('호흡이 부족합니다!');
+              return;
+          }
+          setIsDefending(false);
+          setPlayerAction('ATTACK');
+          setTimeout(() => setPlayerAction('IDLE'), 300);
+          const dmg = 40 + Math.floor(Math.random() * 15);
+          setEnemyHp(prev => Math.max(0, prev - dmg));
+          setPlayerSp(prev => Math.max(0, prev - 1));
+          setEnemyAction('HURT');
+          setTimeout(() => setEnemyAction('IDLE'), 300);
+          setBattleLog(`일반 공격! ${dmg} 피해.`);
+        };
+
+        const handleDefend = () => {
+          if (isPaused || playerAction !== 'IDLE') return;
+          setIsDefending(true);
+          setPlayerAction('DEFEND');
+          setBattleLog('방어 태세!');
+          setTimeout(() => {
+              setIsDefending(false);
+              setPlayerAction(prev => prev === 'DEFEND' ? 'IDLE' : prev);
+          }, 1500);
+        };
+
+        const handleRecover = () => {
+          if (isPaused || playerAction !== 'IDLE') return;
+          setIsDefending(false);
+          setPlayerAction('RECOVER');
+          setVisualEffect('bg-blue-200');
+          setTimeout(() => setVisualEffect(null), 300);
+          setTimeout(() => setPlayerAction('IDLE'), 600);
+          setPlayerSp(prev => Math.min(player.maxSp, prev + player.spRecovery));
+          setBattleLog('전집중 호흡! 호흡을 가다듬었다.');
+        };
+
+        const handleHeal = () => {
+           if (isPaused || (playerAction !== 'IDLE' && playerAction !== 'DEFEND')) return;
+           const healCost = 50;
+           const healAmount = 200;
+           if (playerSp < healCost) {
+               setBattleLog('호흡이 부족해 치료할 수 없다! (필요: 50)');
+               return;
+           }
+           setIsDefending(false);
+           setPlayerAction('RECOVER');
+           setVisualEffect('bg-green-400');
+           setTimeout(() => setVisualEffect(null), 500);
+           setTimeout(() => setPlayerAction('IDLE'), 800);
+           
+           setPlayerSp(prev => prev - healCost);
+           setPlayerHp(prev => Math.min(player.maxHp, prev + healAmount));
+           setBattleLog(`응급 처치! 체력 ${healAmount} 회복.`);
+        };
+
+        const handleSkill = (skill) => {
+          if (isPaused || (playerAction !== 'IDLE' && playerAction !== 'DEFEND')) return;
+          if (cooldowns[skill.id] > Date.now()) return;
+          if (playerSp < skill.cost) {
+              setBattleLog('호흡이 흐트러져 기술을 쓸 수 없다!');
+              return;
+          }
+          setIsDefending(false);
+          setPlayerAction('SKILL');
+          setTimeout(() => setPlayerAction('IDLE'), 800);
+          setVisualEffect(skill.animationColor);
+          setTimeout(() => setVisualEffect(null), 500);
+          setPlayerSp(prev => prev - skill.cost);
+          setBattleLog(`${skill.name}! (호흡 -${skill.cost})`);
+          setEnemyHp(prev => Math.max(0, prev - skill.damage));
+          setEnemyAction('HURT');
+          setTimeout(() => setEnemyAction('IDLE'), 600);
+          setCooldowns(prev => ({ ...prev, [skill.id]: Date.now() + skill.cooldown }));
+        };
+
+        const getCooldownPercent = (skillId, duration) => {
+          const end = cooldowns[skillId];
+          if (!end || end < Date.now()) return 0;
+          return ((end - Date.now()) / duration) * 100;
+        };
+
+        const [, setTick] = useState(0);
+        useEffect(() => {
+          if (isPaused) return;
+          const timer = setInterval(() => setTick(t => t + 1), 100);
+          return () => clearInterval(timer);
+        }, [isPaused]);
+
+        return (
+          <div className="w-full h-full flex flex-col relative overflow-hidden">
+              {visualEffect && (
+                  <div className={`absolute inset-0 z-10 pointer-events-none opacity-40 mix-blend-hard-light ${visualEffect} animate-pulse`}></div>
+              )}
+              <div className="flex-1 flex items-end justify-between px-4 pb-32 md:px-24 md:pb-48 relative">
+                   <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1518066000714-58c45f1a2c0a?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-bottom opacity-40 grayscale contrast-125"></div>
+                   <div className={`relative z-10 transition-transform duration-200 ${
+                       playerAction === 'ATTACK' ? 'translate-x-20' : 
+                       playerAction === 'SKILL' ? 'translate-x-32 scale-110' :
+                       playerAction === 'RECOVER' ? 'scale-95 brightness-110' :
+                       playerAction === 'HURT' ? '-translate-x-10 opacity-70' :
+                       playerAction === 'DEFEND' ? 'scale-90 brightness-75' : ''
+                   }`}>
+                      <div className={`w-28 h-28 md:w-44 md:h-44 rounded-full shadow-2xl flex items-center justify-center text-5xl md:text-8xl border-4 ${player.accentColor} ${player.color} relative overflow-hidden ring-4 ring-black/50`}>
+                           {player.icon}
+                           {playerAction === 'SKILL' && <div className="absolute inset-0 bg-white/50 animate-ping"></div>}
+                           {playerAction === 'RECOVER' && <div className="absolute inset-0 bg-green-400/30 animate-pulse"></div>}
+                      </div>
+                      {isDefending && <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-blue-300 font-bold flex items-center gap-1"><Shield className="w-4 h-4"/> 방어</div>}
+                   </div>
+                   <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-full text-center pointer-events-none z-20 px-4">
+                       <div className="text-xl md:text-3xl font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,1)] animate-[bounce_0.5s_infinite]">
+                           {battleLog}
+                       </div>
+                   </div>
+                   <div className={`relative z-10 transition-transform duration-200 ${
+                       enemyAction === 'ATTACK' ? '-translate-x-20' : 
+                       enemyAction === 'SKILL' ? '-translate-x-32 scale-110' :
+                       enemyAction === 'HURT' ? 'translate-x-10 opacity-70' : ''
+                   }`}>
+                      <div className={`w-28 h-28 md:w-44 md:h-44 rounded-full shadow-2xl flex items-center justify-center text-5xl md:text-8xl border-4 border-red-900 ${enemy.color} relative overflow-hidden ring-4 ring-black/50`}>
+                           {enemy.icon}
+                           {enemyAction === 'SKILL' && <div className="absolute inset-0 bg-purple-500/50 animate-ping"></div>}
+                      </div>
+                   </div>
+              </div>
+              <div className="h-auto bg-gray-900 border-t-2 border-gray-700 p-2 md:p-4 relative z-20">
+                   {/* Horizontal Scroll for Controls (One Line) */}
+                   <div className="max-w-6xl mx-auto flex gap-3 overflow-x-auto custom-scrollbar pb-2 px-2 snap-x">
+                       <button 
+                          onClick={handleRecover}
+                          className="shrink-0 w-24 bg-gray-800 hover:bg-gray-700 border-b-4 border-gray-950 rounded-lg flex flex-col items-center justify-center gap-1 active:border-b-0 active:translate-y-1 shadow-lg group min-h-[5rem] snap-start"
+                       >
+                           <Wind className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform" />
+                           <span className="text-sm font-bold text-blue-200">호흡 회복</span>
+                       </button>
+                       <button 
+                          onClick={handleAttack}
+                          className="shrink-0 w-24 bg-gray-800 hover:bg-gray-700 border-b-4 border-gray-950 rounded-lg flex flex-col items-center justify-center gap-1 active:border-b-0 active:translate-y-1 shadow-lg group min-h-[5rem] snap-start"
+                       >
+                           <Sword className="w-6 h-6 text-gray-400 group-hover:scale-110 transition-transform" />
+                           <span className="text-sm font-bold text-gray-200">베기</span>
+                           <span className="text-[10px] text-blue-400 font-mono">SP -1</span>
+                       </button>
+                       <button 
+                          onClick={handleDefend}
+                          className={`shrink-0 w-24 bg-gray-800 hover:bg-gray-700 border-b-4 border-gray-950 rounded-lg flex flex-col items-center justify-center gap-1 active:border-b-0 active:translate-y-1 shadow-lg group min-h-[5rem] snap-start ${isDefending ? 'bg-blue-900/50 border-blue-500' : ''}`}
+                       >
+                           <Shield className="w-6 h-6 text-gray-400 group-hover:scale-110 transition-transform" />
+                           <span className="text-sm font-bold text-gray-200">방어</span>
+                       </button>
+                       <button 
+                          onClick={handleHeal}
+                          className="shrink-0 w-24 bg-gray-800 hover:bg-gray-700 border-b-4 border-gray-950 rounded-lg flex flex-col items-center justify-center gap-1 active:border-b-0 active:translate-y-1 shadow-lg group min-h-[5rem] snap-start"
+                       >
+                           <Heart className="w-6 h-6 text-green-500 group-hover:scale-110 transition-transform" />
+                           <span className="text-sm font-bold text-green-200">치료</span>
+                           <span className="text-[10px] text-blue-400 font-mono">SP -50</span>
+                       </button>
+                       
+                       {/* Separator */}
+                       <div className="w-px h-16 bg-gray-700 shrink-0 self-center"></div>
+
+                       {player.skills.map((skill) => {
+                           const onCooldown = cooldowns[skill.id] > Date.now();
+                           const notEnoughSp = playerSp < skill.cost;
+                           const cooldownPct = getCooldownPercent(skill.id, skill.cooldown);
+                           return (
+                              <button 
+                                  key={skill.id}
+                                  onClick={() => handleSkill(skill)}
+                                  disabled={onCooldown || notEnoughSp}
+                                  className={`
+                                      shrink-0 w-28 relative rounded-lg flex flex-col items-center justify-center gap-0.5 active:border-b-0 active:translate-y-1 overflow-hidden border-b-4 shadow-lg min-h-[5rem] snap-start
+                                      ${notEnoughSp ? 'bg-gray-800 opacity-60 border-gray-900' : 'bg-gray-800 border-gray-950 hover:bg-gray-750'}
+                                      ${onCooldown ? 'cursor-not-allowed opacity-60' : ''}
+                                  `}
+                              >
+                                  <div className="absolute inset-0 bg-black/60 z-10 transition-all ease-linear" style={{ height: `${cooldownPct}%` }}></div>
+                                  <div className="text-lg z-0">{skill.icon}</div>
+                                  <span className="font-bold text-white z-0 text-xs text-center leading-tight px-1 truncate w-full">{skill.name}</span>
+                                  <div className="flex items-center gap-0.5 text-[10px] text-blue-300 font-bold z-0 bg-black/50 px-1.5 rounded-full mt-0.5">
+                                      <Wind className="w-3 h-3" />
+                                      {skill.cost}
+                                  </div>
+                              </button>
+                           );
+                       })}
+                   </div>
+              </div>
+          </div>
+        );
+      };
+
+      const App = () => {
+        const [gameState, setGameState] = useState(GameState.MENU);
+        const [selectedChar, setSelectedChar] = useState(null);
+        const [currentEnemy, setCurrentEnemy] = useState(null);
+        const [currentStats, setCurrentStats] = useState({ hp: 0, sp: 0, enemyHp: 0 });
+        const [isVictory, setIsVictory] = useState(false);
+
+        useEffect(() => {
+          const handleKeyDown = (e) => {
+            if (e.key === 'Escape') togglePause();
+          };
+          window.addEventListener('keydown', handleKeyDown);
+          return () => window.removeEventListener('keydown', handleKeyDown);
+        }, [gameState]);
+
+        const togglePause = () => {
+          if (gameState === GameState.BATTLE) setGameState(GameState.PAUSED);
+          else if (gameState === GameState.PAUSED) setGameState(GameState.BATTLE);
+        };
+
+        const handleStart = (char) => {
+          setSelectedChar(char);
+          const randomEnemy = ENEMIES[Math.floor(Math.random() * ENEMIES.length)];
+          setCurrentEnemy(randomEnemy);
+          setCurrentStats({ hp: char.maxHp, sp: char.maxSp, enemyHp: randomEnemy.maxHp });
+          setGameState(GameState.BATTLE);
+        };
+
+        const handleUpdateStats = (hp, sp, enemyHp) => {
+          setCurrentStats({ hp, sp, enemyHp });
+        };
+
+        const handleGameEnd = (victory) => {
+          setIsVictory(victory);
+          setGameState(victory ? GameState.VICTORY : GameState.DEFEAT);
+        };
+
+        const handleRestart = () => {
+          setGameState(GameState.MENU);
+          setSelectedChar(null);
+          setCurrentEnemy(null);
+        };
+
+        return (
+          <div className="min-h-screen w-full bg-gray-950 text-white font-sans overflow-hidden select-none relative">
+            <div className="absolute inset-0 opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')]"></div>
+            <div className="relative z-10 w-full h-screen flex flex-col">
+              {(gameState === GameState.BATTLE || gameState === GameState.PAUSED) && (
+                  <button 
+                      onClick={togglePause}
+                      className="absolute top-4 right-4 z-[60] p-2 bg-gray-800/80 rounded-full hover:bg-gray-700 text-white border border-gray-600"
+                  >
+                      <Pause className="w-6 h-6" />
+                  </button>
+              )}
+              {(gameState === GameState.BATTLE || gameState === GameState.PAUSED) && selectedChar && currentEnemy && (
+                   <HUD 
+                      player={selectedChar} 
+                      enemy={currentEnemy} 
+                      playerHp={currentStats.hp} 
+                      playerSp={currentStats.sp}
+                      enemyHp={currentStats.enemyHp} 
+                   />
+              )}
+              <div className="flex-1 w-full h-full relative">
+                  {gameState === GameState.MENU && (
+                      <StartScreen onSelect={handleStart} />
+                  )}
+                  {(gameState === GameState.BATTLE || gameState === GameState.PAUSED) && selectedChar && currentEnemy && (
+                      <GameBoard 
+                          player={selectedChar} 
+                          enemy={currentEnemy}
+                          isPaused={gameState === GameState.PAUSED}
+                          onGameEnd={handleGameEnd} 
+                          updateStats={handleUpdateStats}
+                      />
+                  )}
+                  {gameState === GameState.PAUSED && (
+                      <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200">
+                          <div className="bg-gray-900 border-2 border-gray-600 p-8 rounded-xl shadow-2xl text-center">
+                              <h2 className="text-4xl font-black text-white mb-4">일시 정지</h2>
+                              <p className="text-gray-400 mb-8">잠시 휴식 중입니다.</p>
+                              <div className="flex flex-col md:flex-row gap-4 justify-center">
+                                  <button 
+                                      onClick={togglePause}
+                                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold min-w-[120px]"
+                                  >
+                                      계속하기
+                                  </button>
+                                  <button 
+                                      onClick={handleRestart}
+                                      className="px-6 py-3 bg-red-700 hover:bg-red-600 rounded-lg font-bold min-w-[120px] flex items-center justify-center gap-2"
+                                  >
+                                      <DoorOpen className="w-4 h-4" />
+                                      그만하기
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
+                  {(gameState === GameState.VICTORY || gameState === GameState.DEFEAT) && (
+                      <GameOver 
+                          isVictory={gameState === GameState.VICTORY} 
+                          onRestart={handleRestart} 
+                      />
+                  )}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
